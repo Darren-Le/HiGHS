@@ -137,6 +137,10 @@ message(STATUS "Build pdlp with GPU: ${CUPDLP_GPU}")
 option(CUPDLP_FIND_CUDA "Build pdlp with GPU" OFF)
 message(STATUS "Use FindCUDAConf: ${CUPDLP_FIND_CUDA}")
 
+# szg - Lattice enumeration heuristic option
+option(BUILD_LATTICE_ENUM "Build lattice enumeration heuristic" ON)
+message(STATUS "Build lattice enumeration: ${BUILD_LATTICE_ENUM}")
+
 if(CUPDLP_GPU AND CMAKE_VERSION VERSION_LESS "3.25.0") 
     message("CUPDLP FindCUDAConf requires CMake version minumum 3.24. Please use a higher version of CMake.")
 endif()
@@ -170,6 +174,24 @@ if (CUPDLP_GPU)
 else()
   set (CUPDLP_CPU ON)
     set(CUDA_LIBRARY-NOTFOUND true)
+endif()
+
+# szg - Lattice enumeration dependencies
+if(BUILD_LATTICE_ENUM)
+  # Find Eigen3 library
+  find_package(Eigen3 REQUIRED)
+  if(Eigen3_FOUND)
+    message(STATUS "Found Eigen3: ${Eigen3_VERSION}")
+  endif()
+  
+  # Find fplll library using pkg-config
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(FPLLL REQUIRED fplll)
+  if(FPLLL_FOUND)
+    message(STATUS "Found fplll: ${FPLLL_VERSION}")
+    message(STATUS "fplll include dirs: ${FPLLL_INCLUDE_DIRS}")
+    message(STATUS "fplll libraries: ${FPLLL_LIBRARIES}")
+  endif()
 endif()
 
 if (BUILD_CXX)
@@ -756,6 +778,10 @@ if(NOT FAST_BUILD)
   # Targets
   add_subdirectory(highs)
   add_subdirectory(app)
+  # Add cpp_ms subdirectory if lattice enumeration is enabled
+  if(BUILD_LATTICE_ENUM)
+    add_subdirectory(cpp_ms)
+  endif()
   if(BUILD_TESTING)
     enable_testing()
     add_subdirectory(check)
