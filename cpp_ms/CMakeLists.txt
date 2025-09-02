@@ -51,4 +51,17 @@ elseif(MSVC)
   target_compile_options(cpp_ms PRIVATE /w)
 endif()
 
+# szg - Installation and export configuration
+install(TARGETS cpp_ms
+  EXPORT highs-targets
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Install headers
+install(FILES ms_solve.h
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
 message(STATUS "cpp_ms target configured successfully")
