@@ -37,12 +37,8 @@ endif()
 # Use C++17
 target_compile_features(cpp_ms PRIVATE cxx_std_17)
 
-# Disable warnings
-if(UNIX)
-  target_compile_options(cpp_ms PRIVATE -w -Wno-redundant-decls)
-elseif(MSVC)
-  target_compile_options(cpp_ms PRIVATE /w)
-endif()
+# Optimization flags
+target_compile_options(cpp_ms PRIVATE -O3 -march=native -flto -funroll-loops -ffast-math -w)
 
 # Define the macro
 target_compile_definitions(cpp_ms PUBLIC HIGHS_LATTICE_ENUM)
