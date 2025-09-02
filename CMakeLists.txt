@@ -778,15 +778,9 @@ if(NOT FAST_BUILD)
   # Targets
   # szg - Add cpp_ms subdirectory if lattice enumeration is enabled
   # Targets
-  message(STATUS "BUILD_LATTICE_ENUM is: ${BUILD_LATTICE_ENUM}")
   if(BUILD_LATTICE_ENUM)
-    message(STATUS "About to add cpp_ms subdirectory")
     add_subdirectory(cpp_ms)
-    message(STATUS "cpp_ms subdirectory added")
-  else()
-    message(STATUS "BUILD_LATTICE_ENUM is OFF, skipping cpp_ms")
   endif()
-  add_subdirectory(highs)
   add_subdirectory(highs)
   add_subdirectory(app)
   if(BUILD_TESTING)
@@ -796,6 +790,11 @@ if(NOT FAST_BUILD)
 
 else(FAST_BUILD)
   message(STATUS "FAST_BUILD set to on.")
+        
+  if(BUILD_LATTICE_ENUM)
+    message(STATUS "Adding cpp_ms in FAST_BUILD mode")
+    add_subdirectory(cpp_ms)
+  endif()
 
   option(BUILD_EXAMPLES "Build examples" ON)
   message(STATUS "Build examples: ${BUILD_EXAMPLES}")
