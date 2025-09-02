@@ -2,6 +2,7 @@
 cmake_minimum_required(VERSION 3.15)
 
 message(STATUS "Building cpp_ms library")
+
 # Create static library
 add_library(cpp_ms STATIC)
 
@@ -12,9 +13,10 @@ target_sources(cpp_ms PRIVATE
 
 message(STATUS "Added source files to cpp_ms")
 
-# Headers
+# Headers - use generator expressions for export compatibility  
 target_include_directories(cpp_ms PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 # Check if dependencies are available
@@ -34,10 +36,19 @@ if(BUILD_LATTICE_ENUM)
     message(WARNING "FPLLL libraries not found")
   endif()
   
-  # Include directories
+  # Include directories for FPLLL
   if(FPLLL_INCLUDE_DIRS)
-    target_include_directories(cpp_ms PUBLIC ${FPLLL_INCLUDE_DIRS})
+    target_include_directories(cpp_ms PUBLIC 
+      $<BUILD_INTERFACE:${FPLLL_INCLUDE_DIRS}>
+    )
     message(STATUS "Added FPLLL include dirs: ${FPLLL_INCLUDE_DIRS}")
+  endif()
+  
+  # Compiler options
+  if(FPLLL_CFLAGS_OTHER)
+    target_compile_options(cpp_ms PUBLIC 
+      ${FPLLL_CFLAGS_OTHER}
+    )
   endif()
 endif()
 
@@ -51,7 +62,10 @@ elseif(MSVC)
   target_compile_options(cpp_ms PRIVATE /w)
 endif()
 
-# szg - Installation and export configuration
+# Define the macro
+target_compile_definitions(cpp_ms PUBLIC HIGHS_HAVE_LATTICE_ENUM)
+
+# Installation and export configuration
 install(TARGETS cpp_ms
   EXPORT highs-targets
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
