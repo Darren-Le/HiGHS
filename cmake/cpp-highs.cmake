@@ -47,7 +47,7 @@ if(BUILD_LATTICE_ENUM)
   target_link_libraries(highs cpp_ms)
   
   # Add preprocessor definition to enable lattice enumeration code
-  target_compile_definitions(highs PRIVATE HIGHS_HAVE_LATTICE_ENUM)
+  target_compile_definitions(highs PRIVATE HIGHS_LATTICE_ENUM)
   
   message(STATUS "Linked cpp_ms library to highs target")
   message(STATUS "Lattice enumeration heuristic enabled")

@@ -1,4 +1,4 @@
-# cpp_ms library for lattice enumeration
+# szg - cpp_ms library for lattice enumeration
 cmake_minimum_required(VERSION 3.15)
 
 message(STATUS "Building cpp_ms library")
@@ -43,6 +43,9 @@ if(UNIX)
 elseif(MSVC)
   target_compile_options(cpp_ms PRIVATE /w)
 endif()
+
+# Define the macro
+target_compile_definitions(cpp_ms PUBLIC HIGHS_LATTICE_ENUM)
 
 # Installation (single install command)
 install(TARGETS cpp_ms
