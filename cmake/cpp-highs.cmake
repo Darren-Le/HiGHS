@@ -43,8 +43,8 @@ set_target_properties(highs PROPERTIES
 ## szg - Lattice Enumeration Support ##
 ###################
 if(BUILD_LATTICE_ENUM)
-  # Link cpp_ms library to HiGHS
-  target_link_libraries(highs PRIVATE cpp_ms)
+  # Link cpp_ms library to HiGHS (using plain signature to match existing code)
+  target_link_libraries(highs cpp_ms)
   
   # Add preprocessor definition to enable lattice enumeration code
   target_compile_definitions(highs PRIVATE HIGHS_HAVE_LATTICE_ENUM)
