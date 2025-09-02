@@ -6,12 +6,10 @@ message(STATUS "Building cpp_ms library")
 # Create static library
 add_library(cpp_ms STATIC)
 
-# Source files - just your original ms_solve.cpp
+# Source files
 target_sources(cpp_ms PRIVATE
   ms_solve.cpp
 )
-
-message(STATUS "Added source files to cpp_ms")
 
 # Headers - use generator expressions for export compatibility  
 target_include_directories(cpp_ms PUBLIC
@@ -19,40 +17,24 @@ target_include_directories(cpp_ms PUBLIC
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-# Check if dependencies are available
-if(BUILD_LATTICE_ENUM)
-  # Link dependencies with error checking
-  if(TARGET Eigen3::Eigen)
-    target_link_libraries(cpp_ms PUBLIC Eigen3::Eigen)
-    message(STATUS "Linked Eigen3 to cpp_ms")
-  else()
-    message(WARNING "Eigen3::Eigen target not found")
-  endif()
-  
-  if(FPLLL_FOUND AND FPLLL_LIBRARIES)
-    target_link_libraries(cpp_ms PUBLIC ${FPLLL_LIBRARIES})
-    message(STATUS "Linked FPLLL libraries: ${FPLLL_LIBRARIES}")
-  else()
-    message(WARNING "FPLLL libraries not found")
-  endif()
-  
-  # Include directories for FPLLL
-  if(FPLLL_INCLUDE_DIRS)
-    target_include_directories(cpp_ms PUBLIC 
-      $<BUILD_INTERFACE:${FPLLL_INCLUDE_DIRS}>
-    )
-    message(STATUS "Added FPLLL include dirs: ${FPLLL_INCLUDE_DIRS}")
-  endif()
-  
-  # Compiler options
-  if(FPLLL_CFLAGS_OTHER)
-    target_compile_options(cpp_ms PUBLIC 
-      ${FPLLL_CFLAGS_OTHER}
-    )
-  endif()
+# Link dependencies
+if(TARGET Eigen3::Eigen)
+  target_link_libraries(cpp_ms PUBLIC Eigen3::Eigen)
+  message(STATUS "Linked Eigen3 to cpp_ms")
 endif()
 
-# Use C++17 for cpp_ms (your original standard)
+if(FPLLL_FOUND AND FPLLL_LIBRARIES)
+  target_link_libraries(cpp_ms PUBLIC ${FPLLL_LIBRARIES})
+  message(STATUS "Linked FPLLL libraries: ${FPLLL_LIBRARIES}")
+endif()
+
+if(FPLLL_INCLUDE_DIRS)
+  target_include_directories(cpp_ms PUBLIC 
+    $<BUILD_INTERFACE:${FPLLL_INCLUDE_DIRS}>
+  )
+endif()
+
+# Use C++17
 target_compile_features(cpp_ms PRIVATE cxx_std_17)
 
 # Disable warnings
@@ -62,10 +44,7 @@ elseif(MSVC)
   target_compile_options(cpp_ms PRIVATE /w)
 endif()
 
-# Define the macro
-target_compile_definitions(cpp_ms PUBLIC HIGHS_HAVE_LATTICE_ENUM)
-
-# Installation and export configuration
+# Installation (single install command)
 install(TARGETS cpp_ms
   EXPORT highs-targets
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -73,7 +52,6 @@ install(TARGETS cpp_ms
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-# Install headers
 install(FILES ms_solve.h
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
