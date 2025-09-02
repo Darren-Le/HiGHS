@@ -776,12 +776,12 @@ if(NOT FAST_BUILD)
   # endif()
 
   # Targets
-  add_subdirectory(highs)
-  add_subdirectory(app)
-  # Add cpp_ms subdirectory if lattice enumeration is enabled
+  # szg - Add cpp_ms subdirectory if lattice enumeration is enabled
   if(BUILD_LATTICE_ENUM)
     add_subdirectory(cpp_ms)
   endif()
+  add_subdirectory(highs)
+  add_subdirectory(app)
   if(BUILD_TESTING)
     enable_testing()
     add_subdirectory(check)
