@@ -73,9 +73,15 @@ install(TARGETS highs
       
 if (NOT HIGHS_COVERAGE)
   # Add library targets to the build-tree export set
-  export(TARGETS highs
-    NAMESPACE ${PROJECT_NAMESPACE}::
-    FILE "${HIGHS_BINARY_DIR}/highs-targets.cmake")
+  if(BUILD_LATTICE_ENUM)
+    export(TARGETS highs cpp_ms
+      NAMESPACE ${PROJECT_NAMESPACE}::
+      FILE "${HIGHS_BINARY_DIR}/highs-targets.cmake")
+  else()
+    export(TARGETS highs
+      NAMESPACE ${PROJECT_NAMESPACE}::
+      FILE "${HIGHS_BINARY_DIR}/highs-targets.cmake")
+  endif()
 endif()
 
 if (CUPDLP_GPU)
