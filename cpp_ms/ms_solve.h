@@ -4,54 +4,78 @@
 #include <vector>
 #include <string>
 #include <Eigen/Dense>
+#include <chrono>
+#include <fplll/fplll.h>
+
+#define MAX_N_BASIS 128
+#define MAX_N_PLUS_1 128
 
 using namespace Eigen;
 using namespace std;
+using namespace fplll;
+using namespace std::chrono;
 
 struct SolveResult {
     string id;
     int solutions_count;
     vector<VectorXi> solutions;
     bool optimal_found;
-    long long backtrack_loops;
-    long long dive_loops;
-    long long first_sol_bt_loops;
-    long long first_pruning_effect_count;
-    long long second_pruning_effect_count;
-    long long third_pruning_effect_count;
-    double solve_time;
-    double first_solution_time;
-    double init_time;
+    long long backtrack_loops, dive_loops, first_sol_bt_loops;
+    long long first_pruning_effect_count, second_pruning_effect_count, third_pruning_effect_count;
+    double solve_time, first_solution_time, init_time;
     bool success;
-    string error_message;
+    string error;
 };
 
 class MarketSplit {
 private:
     MatrixXi A;
-    VectorXi d;
-    int m, n;
+    VectorXi d, r, c;
+    int m, n, n_basis, rmax;
     
+    // Lattice data
+    MatrixXi L;
+    MatrixXi basis;
+    MatrixXd b_hat, b_bar, mu;
+    VectorXd b_hat_norms_sq, b_bar_norms_l2, b_bar_norms_l1;
+    MatrixXd coords;
+    
+    // Statistics
+    long long backtrack_loops, dive_loops, first_sol_bt_loops;
+    long long first_pruning_effect_count, second_pruning_effect_count, third_pruning_effect_count;
+    double first_solution_time;
+    high_resolution_clock::time_point start_time;
+    
+    int max_sols;
+    bool debug;
+    
+    // Helper methods
+    int compute_lcm(const vector<int>& nums);
+    void get_extended_matrix();
+    void get_reduced_basis();
+    void get_gso();
+    void compute_dual_norms();
+    void get_coordinates();
+
 public:
-    MarketSplit(const MatrixXi& A, const VectorXi& d, const VectorXi& r = VectorXi(), 
-                int max_sols = -1, bool debug = false);
-    
+    MarketSplit(const MatrixXi& A, const VectorXi& d, const VectorXi& r = VectorXi(), int max_sols = -1, bool debug = false);
     vector<VectorXi> enumerate();
     
-    // Statistics getters
-    long long get_backtrack_loops() const { return 0; }
-    long long get_dive_loops() const { return 0; }
-    long long get_first_sol_bt_loops() const { return 0; }
-    long long get_first_pruning_effect_count() const { return 0; }
-    long long get_second_pruning_effect_count() const { return 0; }
-    long long get_third_pruning_effect_count() const { return 0; }
-    double get_first_solution_time() const { return 0.0; }
+    bool verify_gso(double tol = 1e-10) const;
+    bool verify_dual(double tol = 1e-10) const;
+
+    inline bool backtrack(int idx, int* u_values_ptr, const double* prev_w_data, double prev_w_norm_sq, vector<VectorXi>& solutions, double c, const double* u_global_bounds_data);
+
+    // Getters for statistics
+    long long get_backtrack_loops() const { return backtrack_loops; }
+    long long get_dive_loops() const { return dive_loops; }
+    long long get_first_sol_bt_loops() const { return first_sol_bt_loops; }
+    long long get_first_pruning_effect_count() const { return first_pruning_effect_count; }
+    long long get_second_pruning_effect_count() const { return second_pruning_effect_count; }
+    long long get_third_pruning_effect_count() const { return third_pruning_effect_count; }
+    double get_first_solution_time() const { return first_solution_time; }
 };
 
-// Main function for HiGHS integration
-SolveResult ms_run(const MatrixXi& A, const VectorXi& d, 
-                   const string& instance_id = "highs_instance",
-                   const VectorXi* opt_sol = nullptr, 
-                   int max_sols = -1, bool debug = false);
+SolveResult ms_run(const MatrixXi& A, const VectorXi& d, const string& instance_id, const VectorXi* opt_sol = nullptr, int max_sols = -1, bool debug = false);
 
-#endif // MS_SOLVE_H
+#endif

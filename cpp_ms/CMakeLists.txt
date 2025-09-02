@@ -39,7 +39,7 @@ target_compile_features(cpp_ms PRIVATE cxx_std_17)
 
 # Disable warnings
 if(UNIX)
-  target_compile_options(cpp_ms PRIVATE -w)
+  target_compile_options(cpp_ms PRIVATE -w -Wno-redundant-decls)
 elseif(MSVC)
   target_compile_options(cpp_ms PRIVATE /w)
 endif()
