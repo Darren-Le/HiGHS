@@ -1645,3 +1645,21 @@ void HighsPrimalHeuristics::flushStatistics() {
   mipsolver.mipdata_->total_lp_iterations += lp_iterations;
   lp_iterations = 0;
 }
+
+#ifdef HIGHS_LATTICE_ENUM
+#include "ms_solve.h"
+
+void HighsPrimalHeuristics::latticeEnumeration(int level) {
+  auto start_time = std::chrono::high_resolution_clock::now();
+  
+  printf("Lattice enumeration heuristic called with level %d\n", level);
+  
+  // TODO: Implement the actual heuristic logic here
+  
+  auto end_time = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+  printf("Lattice enumeration completed in %ld ms\n", duration.count());
+  
+  return;
+}
+#endif

@@ -69,6 +69,11 @@ class HighsPrimalHeuristics {
   void shifting(const std::vector<double>& relaxationsol);
 
   void ziRound(const std::vector<double>& relaxationsol);
+  
+#ifdef HIGHS_LATTICE_ENUM
+  void latticeEnumeration(int level = 3);
+#endif
+
 };
 
 #endif
