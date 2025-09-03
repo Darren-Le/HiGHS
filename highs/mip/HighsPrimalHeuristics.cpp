@@ -1656,15 +1656,14 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
   
   MatrixXi A(2, 3);
   A << 1, 2, 3,
-  2, 5, 6,
-  1, 9, 2;
+  2, 5, 6;
   
-  VectorXi d(3);
-  d << 3, 7, 10;
+  VectorXi d(2);
+  d << 3, 7;
 
   std::cout << "Calling ms_run with test data..." << std::endl;
-  SolveResult result = ms_run(A, d, "test_instance")
-  std::cout << "solution_count:" << result.solution_count << std::endl;
+  SolveResult result = ms_run(A, d, "test_instance");
+  std::cout << "solutions_count:" << result.solutions_count << std::endl;
   std::cout << "success:" << (result.success ? "Yes" : "No") << std::endl;
   std::cout << "backtrack_loops:" << result.backtrack_loops << std::endl;
   std::cout << "solve_time:" << result.solve_time << std::endl;
