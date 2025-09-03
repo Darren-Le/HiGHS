@@ -39,12 +39,12 @@ target_compile_features(cpp_ms PRIVATE cxx_std_17)
 
 # Safe optimization by build type
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  target_compile_options(cpp_ms PRIVATE -O0 -g -w)
+  target_compile_options(cpp_ms PRIVATE -O0 -g -w -Wno-odr)
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")  
-  target_compile_options(cpp_ms PRIVATE -O3 -w)
+  target_compile_options(cpp_ms PRIVATE -O3 -w -Wno-odr)
 else()
   # Default
-  target_compile_options(cpp_ms PRIVATE -O2 -w)
+  target_compile_options(cpp_ms PRIVATE -O2 -w -Wno-odr)
 endif()
 
 # Define the macro

@@ -338,7 +338,7 @@ HighsModelStatus HighsMipSolverData::trivialHeuristics() {
   }
 #ifdef HIGHS_LATTICE_ENUM
   // Call lattice enumeration heuristic
-  mipsolver.mipdata_->primal_heuristics_->latticeEnumeration(3);
+  heuristics.latticeEnumeration(3);
   
   // Check if we found optimal and can return early
   if (upper_bound <= lower_bound + feastol) {
