@@ -37,8 +37,15 @@ endif()
 # Use C++17
 target_compile_features(cpp_ms PRIVATE cxx_std_17)
 
-# Optimization flags
-target_compile_options(cpp_ms PRIVATE -O3 -march=native -flto -funroll-loops -ffast-math -w)
+# Safe optimization by build type
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  target_compile_options(cpp_ms PRIVATE -O0 -g -w)
+elseif(CMAKE_BUILD_TYPE STREQUAL "Release")  
+  target_compile_options(cpp_ms PRIVATE -O3 -w)
+else()
+  # Default
+  target_compile_options(cpp_ms PRIVATE -O2 -w)
+endif()
 
 # Define the macro
 target_compile_definitions(cpp_ms PUBLIC HIGHS_LATTICE_ENUM)
