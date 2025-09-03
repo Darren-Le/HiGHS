@@ -1654,8 +1654,20 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
   
   printf("Lattice enumeration heuristic called with level %d\n", level);
   
-  // TODO: Implement the actual heuristic logic here
+  MatrixXi A(2, 3);
+  A << 1, 2, 3,
+  2, 5, 6,
+  1, 9, 2;
   
+  VectorXi d(3);
+  d << 3, 7, 10;
+
+  std::cout << "Calling ms_run with test data..." << std::endl;
+  SolveResult result = ms_run(A, d, "test_instance")
+  std::cout << "solution_count:" << result.solution_count << std::endl;
+  std::cout << "success:" << (result.success ? "Yes" : "No") << std::endl;
+  std::cout << "backtrack_loops:" << result.backtrack_loops << std::endl;
+  std::cout << "solve_time:" << result.solve_time << std::endl;
   auto end_time = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
   printf("Lattice enumeration completed in %ld ms\n", duration.count());
