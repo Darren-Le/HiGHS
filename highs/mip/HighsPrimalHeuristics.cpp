@@ -1675,14 +1675,14 @@ void HighsPrimalHeuristics::flushStatistics() {
 // }
 
 void HighsPrimalHeuristics::latticeEnumeration(int level) {
-  auto start_time = std::chrono::high_resolution_clock::now();
-  
-  // Check if we're at the root node - only run there
-  if (mipsolver.mipdata_->num_nodes > 0) {
-    printf("Skipping lattice enumeration - not at root node (num_nodes = %lld)\n", 
-           (long long)mipsolver.mipdata_->num_nodes);
+  // Static flag to ensure we only run once per MIP solve
+  static bool lattice_enum_executed = false;
+  if (lattice_enum_executed) {
+    // printf("Lattice enumeration already executed - skipping\n");
     return;
   }
+
+  auto start_time = std::chrono::high_resolution_clock::now();
   
   printf("Lattice enumeration heuristic called at root node\n");
   
@@ -1736,8 +1736,8 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
   printf("Solutions found: %d\n", result.solutions_count);
   printf("Success: %s\n", result.success ? "Yes" : "No");
   printf("Backtrack loops: %lld\n", result.backtrack_loops);
-  printf("Solve time: %.3f ms\n", result.solve_time);
-  printf("First solution time: %.3f ms\n", result.first_solution_time);
+  printf("Solve time: %.3f s\n", result.solve_time);
+  printf("First solution time: %.3f s\n", result.first_solution_time);
   
   if (result.solutions_count > 0) {
     printf("FEASIBLE: Ax = b has binary solutions!\n");
