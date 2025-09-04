@@ -1744,10 +1744,27 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
     // Could potentially set upper bound to 0 here since optimal objective would be 0
   } else {
     printf("INFEASIBLE: Ax = b has no binary solutions\n");
-    // Update lower bound - if no binary solution exists, minimum violation cost is min(c_i)
+    
+    // Update lower bound properly following HiGHS pattern
     double min_cost = *std::min_element(lp.col_cost_.begin(), lp.col_cost_.begin() + m);
-    printf("Updating lower bound from %.6f to %.6f\n", mipsolver.mipdata_->lower_bound, min_cost);
+    
+    // Save previous bound
+    double prev_lower_bound = mipsolver.mipdata_->lower_bound;
+    
+    // Update bound (ensure monotonicity)
     mipsolver.mipdata_->lower_bound = std::max(mipsolver.mipdata_->lower_bound, min_cost);
+    
+    // Check for bound change and update primal-dual integral if needed
+    bool bound_change = mipsolver.mipdata_->lower_bound != prev_lower_bound;
+    if (!mipsolver.submip && bound_change) {
+      printf("Updating lower bound from %.6f to %.6f\n", prev_lower_bound, mipsolver.mipdata_->lower_bound);
+      mipsolver.mipdata_->updatePrimalDualIntegral(
+          prev_lower_bound, mipsolver.mipdata_->lower_bound, 
+          mipsolver.mipdata_->upper_bound, mipsolver.mipdata_->upper_bound);
+    } else {
+      printf("No bound change needed (current: %.6f, proposed: %.6f)\n", 
+             mipsolver.mipdata_->lower_bound, min_cost);
+    }
   }
   
   auto end_time = std::chrono::high_resolution_clock::now();
