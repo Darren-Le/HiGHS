@@ -1649,27 +1649,111 @@ void HighsPrimalHeuristics::flushStatistics() {
 #ifdef HIGHS_LATTICE_ENUM
 #include "ms_solve.h"
 
+// void HighsPrimalHeuristics::latticeEnumeration(int level) {
+//   auto start_time = std::chrono::high_resolution_clock::now();
+  
+//   printf("Lattice enumeration heuristic called with level %d\n", level);
+  
+//   MatrixXi A(2, 3);
+//   A << 1, 2, 3,
+//   2, 5, 6;
+  
+//   VectorXi d(2);
+//   d << 3, 7;
+
+//   std::cout << "Calling ms_run with test data..." << std::endl;
+//   SolveResult result = ms_run(A, d, "test_instance");
+//   std::cout << "solutions_count:" << result.solutions_count << std::endl;
+//   std::cout << "success:" << (result.success ? "Yes" : "No") << std::endl;
+//   std::cout << "backtrack_loops:" << result.backtrack_loops << std::endl;
+//   std::cout << "solve_time:" << result.solve_time << std::endl;
+//   auto end_time = std::chrono::high_resolution_clock::now();
+//   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+//   printf("Lattice enumeration completed in %ld ms\n", duration.count());
+  
+//   return;
+// }
+
 void HighsPrimalHeuristics::latticeEnumeration(int level) {
   auto start_time = std::chrono::high_resolution_clock::now();
   
-  printf("Lattice enumeration heuristic called with level %d\n", level);
+  // Check if we're at the root node - only run there
+  if (mipsolver.mipdata_->num_nodes > 0) {
+    printf("Skipping lattice enumeration - not at root node (num_nodes = %lld)\n", 
+           (long long)mipsolver.mipdata_->num_nodes);
+    return;
+  }
   
-  MatrixXi A(2, 3);
-  A << 1, 2, 3,
-  2, 5, 6;
+  printf("Lattice enumeration heuristic called at root node\n");
   
-  VectorXi d(2);
-  d << 3, 7;
-
-  std::cout << "Calling ms_run with test data..." << std::endl;
-  SolveResult result = ms_run(A, d, "test_instance");
-  std::cout << "solutions_count:" << result.solutions_count << std::endl;
-  std::cout << "success:" << (result.success ? "Yes" : "No") << std::endl;
-  std::cout << "backtrack_loops:" << result.backtrack_loops << std::endl;
-  std::cout << "solve_time:" << result.solve_time << std::endl;
+  // Extract problem data
+  const HighsLp& lp = *mipsolver.model_;
+  HighsInt m = lp.num_row_;
+  HighsInt n = lp.num_col_;
+  
+  printf("Problem size: %d rows, %d columns\n", (int)m, (int)n);
+  
+  // Check if we have the expected structure: m slack + (n-m) binary variables
+  if (n <= m) {
+    printf("Not enough binary variables - skipping lattice enumeration\n");
+    return;
+  }
+  
+  // Extract A matrix (coefficients of binary variables) and b vector (RHS)
+  MatrixXi A(m, n - m);
+  VectorXi b(m);
+  
+  // Extract RHS vector b
+  for (HighsInt i = 0; i < m; i++) {
+    b(i) = static_cast<int>(lp.row_lower_[i]); // Assuming equality constraints
+  }
+  
+  // Extract A matrix coefficients for binary variables (columns m to n-1)
+  for (HighsInt i = 0; i < m; i++) {
+    for (HighsInt j = 0; j < n - m; j++) {
+      // Find coefficient of binary variable x_{m+j} in constraint i
+      double coeff = 0.0;
+      HighsInt col_idx = m + j;
+      
+      for (HighsInt k = lp.a_matrix_.start_[col_idx]; k < lp.a_matrix_.start_[col_idx + 1]; k++) {
+        if (lp.a_matrix_.index_[k] == i) {
+          coeff = lp.a_matrix_.value_[k];
+          break;
+        }
+      }
+      A(i, j) = static_cast<int>(coeff);
+    }
+  }
+  
+  printf("Extracted A matrix (%dx%d) and b vector (%d)\n", (int)A.rows(), (int)A.cols(), (int)b.size());
+  
+  // Solve with ms_run
+  std::cout << "Calling ms_run for feasibility check..." << std::endl;
+  SolveResult result = ms_run(A, b, "root_node_check");
+  
+  // Print stats
+  printf("=== Lattice Enumeration Results ===\n");
+  printf("Solutions found: %d\n", result.solutions_count);
+  printf("Success: %s\n", result.success ? "Yes" : "No");
+  printf("Backtrack loops: %lld\n", result.backtrack_loops);
+  printf("Solve time: %.3f ms\n", result.solve_time);
+  printf("First solution time: %.3f ms\n", result.first_solution_time);
+  
+  if (result.solutions_count > 0) {
+    printf("FEASIBLE: Ax = b has binary solutions!\n");
+    // Could potentially set upper bound to 0 here since optimal objective would be 0
+  } else {
+    printf("INFEASIBLE: Ax = b has no binary solutions\n");
+    // Update lower bound - if no binary solution exists, minimum violation cost is min(c_i)
+    double min_cost = *std::min_element(lp.col_cost_.begin(), lp.col_cost_.begin() + m);
+    printf("Updating lower bound from %.6f to %.6f\n", mipsolver.mipdata_->lower_bound, min_cost);
+    mipsolver.mipdata_->lower_bound = std::max(mipsolver.mipdata_->lower_bound, min_cost);
+  }
+  
   auto end_time = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
   printf("Lattice enumeration completed in %ld ms\n", duration.count());
+  printf("===================================\n");
   
   return;
 }
