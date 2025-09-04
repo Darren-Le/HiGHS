@@ -1769,8 +1769,12 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
   
   auto end_time = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+  
+  // Set flag to prevent future calls
+  lattice_enum_executed = true;
   printf("Lattice enumeration completed in %ld ms\n", duration.count());
   printf("===================================\n");
+
   
   return;
 }
