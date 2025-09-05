@@ -76,6 +76,6 @@ public:
     double get_first_solution_time() const { return first_solution_time; }
 };
 
-SolveResult ms_run(const MatrixXi& A, const VectorXi& d, const string& instance_id, const VectorXi* opt_sol = nullptr, int max_sols = -1, bool debug = false);
+SolveResult ms_run(const MatrixXi& A, const VectorXi& d, const string& instance_id, const VectorXi& r, const VectorXi* opt_sol = nullptr, int max_sols = -1, bool debug = false);
 
 #endif
