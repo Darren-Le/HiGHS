@@ -1819,7 +1819,7 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
         }
       }
       
-    } else if (current_level == 3) {
+} else if (current_level == 3) {
       // Full binary enumeration: (I A)z = b
       MatrixXi IA(m, m + n - m);
       IA.setZero();
@@ -1828,11 +1828,12 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
       }
       IA.block(0, m, m, n - m) = A;  // A for x variables
       
-      VectorXi r_mod = VectorXi::Ones(n);  // Fix: declare r_mod properly
+      VectorXi r_mod = VectorXi::Ones(n);
       SolveResult result = ms_run(IA, b, "level_3", r_mod, nullptr, -1, false);
       printf("Level 3: %d solutions found\n", result.solutions_count);
       
       if (result.solutions_count > 0) {
+        // Level 3 feasible - find minimum objective among all solutions
         for (const auto& sol : result.solutions) {
           double obj = 0.0;
           for (HighsInt i = 0; i < m; i++) {
@@ -1850,6 +1851,47 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
             }
           }
         }
+        
+        // Update lower bound when level 3 is feasible
+        double prev_bound = mipsolver.mipdata_->lower_bound;
+        if (prev_bound < level_best_obj) {
+          double theoretical_lb = 2.0 * min_c + second_min_c;
+          double new_bound = std::min(level_best_obj, theoretical_lb);
+          
+          mipsolver.mipdata_->lower_bound = std::max(prev_bound, new_bound);
+          
+          bool bound_change = mipsolver.mipdata_->lower_bound != prev_bound;
+          if (!mipsolver.submip && bound_change) {
+            printf("Level 3 feasible: Updated lower bound: %.6f -> %.6f\n", 
+                   prev_bound, mipsolver.mipdata_->lower_bound);
+            printf("(best_obj = %.6f, theoretical_lb = %.6f)\n", 
+                   level_best_obj, theoretical_lb);
+            mipsolver.mipdata_->updatePrimalDualIntegral(
+                prev_bound, mipsolver.mipdata_->lower_bound, 
+                mipsolver.mipdata_->upper_bound, mipsolver.mipdata_->upper_bound);
+            
+            // Check if gap is closed
+            if (mipsolver.mipdata_->lower_bound >= level_best_obj - 1e-6) {
+              printf("Gap closed at level 3!\n");
+            }
+          }
+        }
+        
+      } else {
+        // Level 3 infeasible - use existing way
+        printf("LEVEL 3 FAILED\n");
+        double prev_bound = mipsolver.mipdata_->lower_bound;
+        double new_bound = 2.0 * min_c + second_min_c;  // lb >= 2*min + second_min
+        
+        mipsolver.mipdata_->lower_bound = std::max(prev_bound, new_bound);
+        
+        bool bound_change = mipsolver.mipdata_->lower_bound != prev_bound;
+        if (!mipsolver.submip && bound_change) {
+          printf("Updated lower bound: %.6f -> %.6f\n", prev_bound, mipsolver.mipdata_->lower_bound);
+          mipsolver.mipdata_->updatePrimalDualIntegral(
+              prev_bound, mipsolver.mipdata_->lower_bound, 
+              mipsolver.mipdata_->upper_bound, mipsolver.mipdata_->upper_bound);
+        }
       }
     }
     
@@ -1862,7 +1904,7 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
     } else if (level_found_solution) {
       printf("LEVEL %d SUCCESS: objective = %.6f (not better than current best %.6f)\n", 
              current_level, level_best_obj, best_obj);
-    } else {
+    } else if (current_level != 3) {  // Only handle non-level-3 cases here
       printf("LEVEL %d FAILED\n", current_level);
       
       // Update lower bound based on level and your specification
@@ -1873,9 +1915,8 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
         new_bound = min_c;  // lb >= min c_i
       } else if (current_level == 1 || current_level == 2) {
         new_bound = 2.0 * min_c;  // lb >= 2 * min c_i
-      } else if (current_level == 3) {
-        new_bound = 2.0 * min_c + second_min_c;  // lb >= 2*min + second_min
       }
+      // Level 3 is handled completely in its own block above
       
       mipsolver.mipdata_->lower_bound = std::max(prev_bound, new_bound);
       
