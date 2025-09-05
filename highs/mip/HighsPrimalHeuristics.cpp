@@ -1722,44 +1722,56 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
     }
   }
   
+
   printf("Extracted A matrix (%dx%d) and b vector (%d)\n", (int)A.rows(), (int)A.cols(), (int)b.size());
   
-  // Calculate sum of costs for level 2
+  // Calculate sum of costs and find min/second min for bounds
   double sum_c = 0.0;
+  std::vector<double> costs;
   for (HighsInt i = 0; i < m; i++) {
     sum_c += lp.col_cost_[i];
+    costs.push_back(lp.col_cost_[i]);
   }
+  std::sort(costs.begin(), costs.end());
+  double min_c = costs[0];
+  double second_min_c = (costs.size() > 1) ? costs[1] : costs[0];
+  
+  // Track best solution found across all levels
+  bool found_any_solution = false;
+  double best_obj = kHighsInf;
+  std::vector<double> best_solution;
   
   // Sequential execution of levels 0 through target level
   for (int current_level = 0; current_level <= level; current_level++) {
     printf("=== Level %d ===\n", current_level);
     
-    bool found_solution = false;
-    double best_obj = kHighsInf;
-    std::vector<double> best_solution;
+    bool level_found_solution = false;
+    double level_best_obj = kHighsInf;
+    std::vector<double> level_best_solution;
     
     if (current_level == 0) {
       // Basic feasibility: Ax = b
-      VectorXi r_mod = VectorXi::Ones(n - m);
+      VectorXi r_mod = VectorXi::Ones(n - m);  // Fix: declare r_mod
       SolveResult result = ms_run(A, b, "level_0", r_mod, nullptr, 1, false);
       printf("Level 0: %d solutions found\n", result.solutions_count);
       
       if (result.solutions_count > 0) {
-        found_solution = true;
-        best_obj = 0.0;  // No violations = objective 0
-        // Create solution vector: slack = 0, binary from result
-        best_solution.assign(n, 0.0);
+        level_found_solution = true;
+        level_best_obj = 0.0;  // No violations = objective 0
+        level_best_solution.assign(n, 0.0);
         for (int j = 0; j < n - m; j++) {
-          best_solution[m + j] = result.solutions[0](j);
+          level_best_solution[m + j] = result.solutions[0](j);
         }
       }
       
     } else if (current_level == 1 || current_level == 2) {
       // Single violation levels
-      double bound = (current_level == 1) ? 1.0 : sum_c;
-      printf("Testing single violations with bound %.0f\n", bound);
+      printf("Testing single violations\n");
       
       for (HighsInt i = 0; i < m; i++) {
+        // Level 2: bound = sum_c // c_i (integer division)
+        double bound = (current_level == 1) ? 1.0 : (sum_c / lp.col_cost_[i]);
+        
         // Create modified system: [e_i | A] with bounds
         MatrixXi A_mod(m, n - m + 1);
         VectorXi r_mod = VectorXi::Ones(n - m + 1);
@@ -1772,18 +1784,17 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
         SolveResult result = ms_run(A_mod, b, "level_" + std::to_string(current_level), r_mod, nullptr, 1, false);
         
         if (result.solutions_count > 0) {
-          int y_i_value = result.solutions[0](0);  // Value of slack variable y_i
-          double obj = lp.col_cost_[i] * y_i_value;  // c_i * y_i
+          int y_i_value = result.solutions[0](0);
+          double obj = lp.col_cost_[i] * y_i_value;
           printf("Row %d feasible: y_%d = %d, obj = %.6f\n", (int)i + 1, (int)i + 1, y_i_value, obj);
           
-          if (obj < best_obj) {
-            best_obj = obj;
-            found_solution = true;
-            // Create solution vector
-            best_solution.assign(n, 0.0);
-            best_solution[i] = y_i_value;  // y_i
+          if (obj < level_best_obj) {
+            level_best_obj = obj;
+            level_found_solution = true;
+            level_best_solution.assign(n, 0.0);
+            level_best_solution[i] = y_i_value;  // y_i
             for (int j = 0; j < n - m; j++) {
-              best_solution[m + j] = result.solutions[0](1 + j);  // x_j
+              level_best_solution[m + j] = result.solutions[0](1 + j);  // x_j
             }
           }
         }
@@ -1793,67 +1804,59 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
       // Full binary enumeration: (I A)z = b
       MatrixXi IA(m, m + n - m);
       IA.setZero();
-      // Identity for y variables
       for (HighsInt i = 0; i < m; i++) {
-        IA(i, i) = 1;
+        IA(i, i) = 1;  // Identity for y variables
       }
-      // A for x variables  
-      IA.block(0, m, m, n - m) = A;
-      VectorXi r_mod = VectorXi::Ones(n);
+      IA.block(0, m, m, n - m) = A;  // A for x variables
       
-      SolveResult result = ms_run(IA, b, "level_3", r_mod, nullptr, -1, false);  // Get all solutions
+      VectorXi r_mod = VectorXi::Ones(n);  // Fix: declare r_mod properly
+      SolveResult result = ms_run(IA, b, "level_3", r_mod, nullptr, -1, false);
       printf("Level 3: %d solutions found\n", result.solutions_count);
       
       if (result.solutions_count > 0) {
         for (const auto& sol : result.solutions) {
           double obj = 0.0;
-          // Calculate objective: sum(c_i * y_i)
           for (HighsInt i = 0; i < m; i++) {
             obj += lp.col_cost_[i] * sol(i);
           }
-          if (obj < best_obj) {
-            best_obj = obj;
-            found_solution = true;
-            best_solution.assign(n, 0.0);
-            // y variables (slack)
+          if (obj < level_best_obj) {
+            level_best_obj = obj;
+            level_found_solution = true;
+            level_best_solution.assign(n, 0.0);
             for (HighsInt i = 0; i < m; i++) {
-              best_solution[i] = sol(i);
+              level_best_solution[i] = sol(i);  // y variables
             }
-            // x variables (binary)
             for (int j = 0; j < n - m; j++) {
-              best_solution[m + j] = sol(m + j);
+              level_best_solution[m + j] = sol(m + j);  // x variables
             }
           }
         }
       }
     }
     
-    // Process results
-    if (found_solution) {
-      printf("LEVEL %d SUCCESS: objective = %.6f\n", current_level, best_obj);
-      
-      // Add incumbent solution
-      printf("Adding incumbent solution with objective %.6f\n", best_obj);
-      bool solution_added = mipsolver.mipdata_->addIncumbent(best_solution, best_obj, 0);
-      if (solution_added) {
-        printf("Incumbent successfully added - terminating search\n");
-      }
-      
-      lattice_enum_executed = true;
-      return;  // Terminate - optimal found
+    // Update global best if this level found better solution
+    if (level_found_solution && level_best_obj < best_obj) {
+      best_obj = level_best_obj;
+      best_solution = level_best_solution;
+      found_any_solution = true;
+      printf("LEVEL %d SUCCESS: objective = %.6f (new best)\n", current_level, level_best_obj);
+    } else if (level_found_solution) {
+      printf("LEVEL %d SUCCESS: objective = %.6f (not better than current best %.6f)\n", 
+             current_level, level_best_obj, best_obj);
     } else {
       printf("LEVEL %d FAILED\n", current_level);
       
-      // Update lower bound based on level
+      // Update lower bound based on level and your specification
       double prev_bound = mipsolver.mipdata_->lower_bound;
       double new_bound = prev_bound;
       
       if (current_level == 0) {
-        new_bound = *std::min_element(lp.col_cost_.begin(), lp.col_cost_.begin() + m);
+        new_bound = min_c;  // lb >= min c_i
       } else if (current_level == 1 || current_level == 2) {
-        new_bound = *std::max_element(lp.col_cost_.begin(), lp.col_cost_.begin() + m) + 1.0;
+        new_bound = 2.0 * min_c;  // lb >= 2 * min c_i
+      } else if (current_level == 3) {
+        new_bound = 2.0 * min_c + second_min_c;  // lb >= 2*min + second_min
       }
-      // Level 3 doesn't update bounds
       
       mipsolver.mipdata_->lower_bound = std::max(prev_bound, new_bound);
       
@@ -1864,6 +1867,22 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
             prev_bound, mipsolver.mipdata_->lower_bound, 
             mipsolver.mipdata_->upper_bound, mipsolver.mipdata_->upper_bound);
       }
+    }
+    
+    // Check if gap is closed (terminate early)
+    if (found_any_solution && mipsolver.mipdata_->lower_bound >= best_obj - 1e-6) {
+      printf("Gap closed! Lower bound %.6f >= Upper bound %.6f\n", 
+             mipsolver.mipdata_->lower_bound, best_obj);
+      break;
+    }
+  }
+  
+  // Add best solution found (if any) at the end
+  if (found_any_solution) {
+    printf("Adding best incumbent solution with objective %.6f\n", best_obj);
+    bool solution_added = mipsolver.mipdata_->addIncumbent(best_solution, best_obj, 0);
+    if (solution_added) {
+      printf("Incumbent successfully added\n");
     }
   }
   
