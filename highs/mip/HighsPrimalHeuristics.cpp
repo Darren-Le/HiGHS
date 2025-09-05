@@ -1740,7 +1740,8 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
     
     if (current_level == 0) {
       // Basic feasibility: Ax = b
-      SolveResult result = ms_run(A, b, "level_0", nullptr, 1, false);
+      VectorXi r_mod = VectorXi::Ones(n - m);
+      SolveResult result = ms_run(A, b, "level_0", r_mod, nullptr, 1, false);
       printf("Level 0: %d solutions found\n", result.solutions_count);
       
       if (result.solutions_count > 0) {
@@ -1771,9 +1772,9 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
         SolveResult result = ms_run(A_mod, b, "level_" + std::to_string(current_level), r_mod, nullptr, 1, false);
         
         if (result.solutions_count > 0) {
-          int y_i_value = solutions[0](0);  // Value of slack variable y_i
+          int y_i_value = result.solutions[0](0);  // Value of slack variable y_i
           double obj = lp.col_cost_[i] * y_i_value;  // c_i * y_i
-          printf("Row %d feasible: y_%d = %d, obj = %.6f\n", (int)i, (int)i, y_i_value, obj);
+          printf("Row %d feasible: y_%d = %d, obj = %.6f\n", (int)i + 1, (int)i + 1, y_i_value, obj);
           
           if (obj < best_obj) {
             best_obj = obj;
@@ -1782,7 +1783,7 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
             best_solution.assign(n, 0.0);
             best_solution[i] = y_i_value;  // y_i
             for (int j = 0; j < n - m; j++) {
-              best_solution[m + j] = solutions[0](1 + j);  // x_j
+              best_solution[m + j] = result.solutions[0](1 + j);  // x_j
             }
           }
         }
@@ -1798,8 +1799,9 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
       }
       // A for x variables  
       IA.block(0, m, m, n - m) = A;
+      VectorXi r_mod = VectorXi::Ones(n);
       
-      SolveResult result = ms_run(IA, b, "level_3", nullptr, -1, false);  // Get all solutions
+      SolveResult result = ms_run(IA, b, "level_3", r_mod, nullptr, -1, false);  // Get all solutions
       printf("Level 3: %d solutions found\n", result.solutions_count);
       
       if (result.solutions_count > 0) {
