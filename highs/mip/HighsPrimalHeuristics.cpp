@@ -1781,21 +1781,40 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
         A_mod(i, 0) = 1;  // e_i
         A_mod.block(0, 1, m, n - m) = A;  // Original A
         
-        SolveResult result = ms_run(A_mod, b, "level_" + std::to_string(current_level), r_mod, nullptr, 1, false);
+        // Get ALL solutions to find minimum y_i
+        SolveResult result = ms_run(A_mod, b, "level_" + std::to_string(current_level), r_mod, nullptr, -1, false);
         
         if (result.solutions_count > 0) {
-          int y_i_value = result.solutions[0](0);
-          double obj = lp.col_cost_[i] * y_i_value;
-          printf("Row %d feasible: y_%d = %d, obj = %.6f\n", (int)i + 1, (int)i + 1, y_i_value, obj);
+          // Find solution with minimum y_i value (minimum objective)
+          int min_y_i = result.solutions[0](0);
+          std::vector<double> row_best_solution;
+          row_best_solution.assign(n, 0.0);
+          row_best_solution[i] = min_y_i;  // y_i
+          for (int j = 0; j < n - m; j++) {
+            row_best_solution[m + j] = result.solutions[0](1 + j);  // x_j
+          }
+          
+          // Check all solutions for this row to find minimum y_i
+          for (const auto& sol : result.solutions) {
+            int y_i_value = sol(0);
+            if (y_i_value < min_y_i) {
+              min_y_i = y_i_value;
+              // Update solution
+              row_best_solution[i] = min_y_i;
+              for (int j = 0; j < n - m; j++) {
+                row_best_solution[m + j] = sol(1 + j);
+              }
+            }
+          }
+          
+          double obj = lp.col_cost_[i] * min_y_i;
+          printf("Row %d feasible: y_%d = %d (min from %d solutions), obj = %.6f\n", 
+                 (int)i + 1, (int)i + 1, min_y_i, result.solutions_count, obj);
           
           if (obj < level_best_obj) {
             level_best_obj = obj;
             level_found_solution = true;
-            level_best_solution.assign(n, 0.0);
-            level_best_solution[i] = y_i_value;  // y_i
-            for (int j = 0; j < n - m; j++) {
-              level_best_solution[m + j] = result.solutions[0](1 + j);  // x_j
-            }
+            level_best_solution = row_best_solution;
           }
         }
       }
