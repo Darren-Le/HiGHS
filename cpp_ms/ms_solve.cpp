@@ -509,12 +509,12 @@ vector<VectorXi> MarketSplit::enumerate() {
     return solutions;
 }
 
-SolveResult ms_run(const MatrixXi& A, const VectorXi& d, const string& instance_id, const VectorXi* opt_sol, int max_sols, bool debug) {
+SolveResult ms_run(const MatrixXi& A, const VectorXi& d, const string& instance_id, const VectorXi& r, const VectorXi* opt_sol, int max_sols, bool debug) {
     auto start_time = high_resolution_clock::now();
     
     try {
         auto init_start = high_resolution_clock::now();
-        MarketSplit ms(A, d, VectorXi(), max_sols, debug);
+        MarketSplit ms(A, d, r, max_sols, debug);
         auto init_end = high_resolution_clock::now();
         double init_time = duration<double>(init_end - init_start).count();
         

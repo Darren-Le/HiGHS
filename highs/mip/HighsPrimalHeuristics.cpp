@@ -1678,12 +1678,10 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
   // Static flag to ensure we only run once per MIP solve
   static bool lattice_enum_executed = false;
   if (lattice_enum_executed) {
-    // printf("Lattice enumeration already executed - skipping\n");
     return;
   }
 
   auto start_time = std::chrono::high_resolution_clock::now();
-  
   printf("Lattice enumeration heuristic called at root node\n");
   
   // Extract problem data
@@ -1693,7 +1691,6 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
   
   printf("Problem size: %d rows, %d columns\n", (int)m, (int)n);
   
-  // Check if we have the expected structure: m slack + (n-m) binary variables
   if (n <= m) {
     printf("Not enough binary variables - skipping lattice enumeration\n");
     return;
@@ -1727,55 +1724,151 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
   
   printf("Extracted A matrix (%dx%d) and b vector (%d)\n", (int)A.rows(), (int)A.cols(), (int)b.size());
   
-  // Solve with ms_run
-  std::cout << "Calling ms_run for feasibility check..." << std::endl;
-  SolveResult result = ms_run(A, b, "root_node_check");
+  // Calculate sum of costs for level 2
+  double sum_c = 0.0;
+  for (HighsInt i = 0; i < m; i++) {
+    sum_c += lp.col_cost_[i];
+  }
   
-  // Print stats
-  printf("=== Lattice Enumeration Results ===\n");
-  printf("Solutions found: %d\n", result.solutions_count);
-  printf("Success: %s\n", result.success ? "Yes" : "No");
-  printf("Backtrack loops: %lld\n", result.backtrack_loops);
-  printf("Solve time: %.3f s\n", result.solve_time);
-  printf("First solution time: %.3f s\n", result.first_solution_time);
-  
-  if (result.solutions_count > 0) {
-    printf("FEASIBLE: Ax = b has binary solutions!\n");
-    // Could potentially set upper bound to 0 here since optimal objective would be 0
-  } else {
-    printf("INFEASIBLE: Ax = b has no binary solutions\n");
+  // Sequential execution of levels 0 through target level
+  for (int current_level = 0; current_level <= level; current_level++) {
+    printf("=== Level %d ===\n", current_level);
     
-    // Update lower bound properly following HiGHS pattern
-    double min_cost = *std::min_element(lp.col_cost_.begin(), lp.col_cost_.begin() + m);
+    bool found_solution = false;
+    double best_obj = kHighsInf;
+    std::vector<double> best_solution;
     
-    // Save previous bound
-    double prev_lower_bound = mipsolver.mipdata_->lower_bound;
+    if (current_level == 0) {
+      // Basic feasibility: Ax = b
+      SolveResult result = ms_run(A, b, "level_0", nullptr, 1, false);
+      printf("Level 0: %d solutions found\n", result.solutions_count);
+      
+      if (result.solutions_count > 0) {
+        found_solution = true;
+        best_obj = 0.0;  // No violations = objective 0
+        // Create solution vector: slack = 0, binary from result
+        best_solution.assign(n, 0.0);
+        for (int j = 0; j < n - m; j++) {
+          best_solution[m + j] = result.solutions[0](j);
+        }
+      }
+      
+    } else if (current_level == 1 || current_level == 2) {
+      // Single violation levels
+      double bound = (current_level == 1) ? 1.0 : sum_c;
+      printf("Testing single violations with bound %.0f\n", bound);
+      
+      for (HighsInt i = 0; i < m; i++) {
+        // Create modified system: [e_i | A] with bounds
+        MatrixXi A_mod(m, n - m + 1);
+        VectorXi r_mod = VectorXi::Ones(n - m + 1);
+        r_mod(0) = static_cast<int>(bound);  // Bound for y_i
+        
+        A_mod.setZero();
+        A_mod(i, 0) = 1;  // e_i
+        A_mod.block(0, 1, m, n - m) = A;  // Original A
+        
+        SolveResult result = ms_run(A_mod, b, "level_" + std::to_string(current_level), r_mod, nullptr, 1, false);
+        
+        if (result.solutions_count > 0) {
+          int y_i_value = solutions[0](0);  // Value of slack variable y_i
+          double obj = lp.col_cost_[i] * y_i_value;  // c_i * y_i
+          printf("Row %d feasible: y_%d = %d, obj = %.6f\n", (int)i, (int)i, y_i_value, obj);
+          
+          if (obj < best_obj) {
+            best_obj = obj;
+            found_solution = true;
+            // Create solution vector
+            best_solution.assign(n, 0.0);
+            best_solution[i] = y_i_value;  // y_i
+            for (int j = 0; j < n - m; j++) {
+              best_solution[m + j] = solutions[0](1 + j);  // x_j
+            }
+          }
+        }
+      }
+      
+    } else if (current_level == 3) {
+      // Full binary enumeration: (I A)z = b
+      MatrixXi IA(m, m + n - m);
+      IA.setZero();
+      // Identity for y variables
+      for (HighsInt i = 0; i < m; i++) {
+        IA(i, i) = 1;
+      }
+      // A for x variables  
+      IA.block(0, m, m, n - m) = A;
+      
+      SolveResult result = ms_run(IA, b, "level_3", nullptr, -1, false);  // Get all solutions
+      printf("Level 3: %d solutions found\n", result.solutions_count);
+      
+      if (result.solutions_count > 0) {
+        for (const auto& sol : result.solutions) {
+          double obj = 0.0;
+          // Calculate objective: sum(c_i * y_i)
+          for (HighsInt i = 0; i < m; i++) {
+            obj += lp.col_cost_[i] * sol(i);
+          }
+          if (obj < best_obj) {
+            best_obj = obj;
+            found_solution = true;
+            best_solution.assign(n, 0.0);
+            // y variables (slack)
+            for (HighsInt i = 0; i < m; i++) {
+              best_solution[i] = sol(i);
+            }
+            // x variables (binary)
+            for (int j = 0; j < n - m; j++) {
+              best_solution[m + j] = sol(m + j);
+            }
+          }
+        }
+      }
+    }
     
-    // Update bound (ensure monotonicity)
-    mipsolver.mipdata_->lower_bound = std::max(mipsolver.mipdata_->lower_bound, min_cost);
-    
-    // Check for bound change and update primal-dual integral if needed
-    bool bound_change = mipsolver.mipdata_->lower_bound != prev_lower_bound;
-    if (!mipsolver.submip && bound_change) {
-      printf("Updating lower bound from %.6f to %.6f\n", prev_lower_bound, mipsolver.mipdata_->lower_bound);
-      mipsolver.mipdata_->updatePrimalDualIntegral(
-          prev_lower_bound, mipsolver.mipdata_->lower_bound, 
-          mipsolver.mipdata_->upper_bound, mipsolver.mipdata_->upper_bound);
+    // Process results
+    if (found_solution) {
+      printf("LEVEL %d SUCCESS: objective = %.6f\n", current_level, best_obj);
+      
+      // Add incumbent solution
+      printf("Adding incumbent solution with objective %.6f\n", best_obj);
+      bool solution_added = mipsolver.mipdata_->addIncumbent(best_solution, best_obj, 0);
+      if (solution_added) {
+        printf("Incumbent successfully added - terminating search\n");
+      }
+      
+      lattice_enum_executed = true;
+      return;  // Terminate - optimal found
     } else {
-      printf("No bound change needed (current: %.6f, proposed: %.6f)\n", 
-             mipsolver.mipdata_->lower_bound, min_cost);
+      printf("LEVEL %d FAILED\n", current_level);
+      
+      // Update lower bound based on level
+      double prev_bound = mipsolver.mipdata_->lower_bound;
+      double new_bound = prev_bound;
+      
+      if (current_level == 0) {
+        new_bound = *std::min_element(lp.col_cost_.begin(), lp.col_cost_.begin() + m);
+      } else if (current_level == 1 || current_level == 2) {
+        new_bound = *std::max_element(lp.col_cost_.begin(), lp.col_cost_.begin() + m) + 1.0;
+      }
+      // Level 3 doesn't update bounds
+      
+      mipsolver.mipdata_->lower_bound = std::max(prev_bound, new_bound);
+      
+      bool bound_change = mipsolver.mipdata_->lower_bound != prev_bound;
+      if (!mipsolver.submip && bound_change) {
+        printf("Updated lower bound: %.6f -> %.6f\n", prev_bound, mipsolver.mipdata_->lower_bound);
+        mipsolver.mipdata_->updatePrimalDualIntegral(
+            prev_bound, mipsolver.mipdata_->lower_bound, 
+            mipsolver.mipdata_->upper_bound, mipsolver.mipdata_->upper_bound);
+      }
     }
   }
   
+  lattice_enum_executed = true;
   auto end_time = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-  
-  // Set flag to prevent future calls
-  lattice_enum_executed = true;
   printf("Lattice enumeration completed in %ld ms\n", duration.count());
   printf("===================================\n");
-
-  
-  return;
 }
 #endif
