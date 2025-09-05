@@ -1867,6 +1867,13 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
     } else {
       printf("LEVEL %d FAILED\n", current_level);
     }
+
+    // Early stopping: check if gap is closed
+    if (found_any_solution && theoretical_lb >= best_obj - 1e-6) {
+      printf("Early stopping at level %d: theoretical_lb %.6f >= best_obj %.6f\n", 
+             current_level, theoretical_lb, best_obj);
+      break;
+    }
   }
   
   // Add best solution found (if any)
