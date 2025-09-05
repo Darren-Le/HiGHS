@@ -1813,8 +1813,13 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
       }
       
       if (!level_found_solution) {
-        // Level 1/2 failed: theoretical_lb >= 2*min_c
-        theoretical_lb = std::max(theoretical_lb, 2.0 * min_c);
+        if (current_level == 1) {
+          // Level 1 failed: theoretical_lb >= 2*min_c
+          theoretical_lb = std::max(theoretical_lb, 2.0 * min_c);
+        } else if (current_level == 2) {
+          // Level 2 failed: theoretical_lb >= min_c + second_min_c
+          theoretical_lb = std::max(theoretical_lb, min_c + second_min_c);
+        }
       }
       
     } else if (current_level == 3) {
