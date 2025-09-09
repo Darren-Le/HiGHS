@@ -1758,6 +1758,8 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
         for (int j = 0; j < n - m; j++) {
           level_best_solution[m + j] = result.solutions[0](j);
         }
+        // Level 0 feasible means optimal = 0, set theoretical bound to optimal
+        theoretical_lb = std::max(theoretical_lb, 0.0);
       } else {
         // Level 0 failed: theoretical_lb >= min_c
         theoretical_lb = std::max(theoretical_lb, min_c);
@@ -1864,7 +1866,7 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
         theoretical_lb = std::max(theoretical_lb, level_theoretical_bound);
         printf("Level %d theoretical bound updated to: %.6f\n", current_level, level_theoretical_bound);
       }
-
+     
     } else if (current_level == 3) {
       // Full binary enumeration: (I A)z = b
       MatrixXi IA(m, m + n - m);
