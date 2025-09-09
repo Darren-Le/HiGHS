@@ -1767,8 +1767,12 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
       // Single violation levels
       printf("Testing single violations\n");
       
+      std::vector<HighsInt> feasible_rows;
+      std::vector<HighsInt> infeasible_rows;
+      std::vector<double> feasible_objectives;
+      
       for (HighsInt i = 0; i < m; i++) {
-        double bound = (current_level == 1) ? 1.0 : (sum_c / lp.col_cost_[i]);
+        double bound = (current_level == 1) ? 1.0 : std::ceil(sum_c / lp.col_cost_[i]);
         
         MatrixXi A_mod(m, n - m + 1);
         VectorXi r_mod = VectorXi::Ones(n - m + 1);
@@ -1781,6 +1785,9 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
         SolveResult result = ms_run(A_mod, b, "level_" + std::to_string(current_level), r_mod, nullptr, -1, false);
         
         if (result.solutions_count > 0) {
+          // Row i is feasible
+          feasible_rows.push_back(i);
+          
           int min_y_i = result.solutions[0](0);
           std::vector<double> row_best_solution;
           row_best_solution.assign(n, 0.0);
@@ -1801,26 +1808,63 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
           }
           
           double obj = lp.col_cost_[i] * min_y_i;
+          feasible_objectives.push_back(obj);
           printf("Row %d feasible: y_%d = %d (min from %d solutions), obj = %.6f\n", 
-                 (int)i + 1, (int)i + 1, min_y_i, result.solutions_count, obj);
+                (int)i + 1, (int)i + 1, min_y_i, result.solutions_count, obj);
           
           if (obj < level_best_obj) {
             level_best_obj = obj;
             level_found_solution = true;
             level_best_solution = row_best_solution;
           }
+        } else {
+          // Row i is infeasible
+          infeasible_rows.push_back(i);
         }
       }
       
-      if (!level_found_solution) {
-        if (current_level == 1) {
-          // Level 1 failed: theoretical_lb >= 2*min_c
-          theoretical_lb = std::max(theoretical_lb, 2.0 * min_c);
-        } else if (current_level == 2) {
-          // Level 2 failed: theoretical_lb >= min_c + second_min_c
-          theoretical_lb = std::max(theoretical_lb, min_c + second_min_c);
+      // Update theoretical bound based on feasible/infeasible partition
+      double level_theoretical_bound = kHighsInf;
+      
+      if (current_level == 1) {
+        // Level 1: min(2 * min(c_i: i ∈ I), min(c_j: j ∈ F))
+        if (!infeasible_rows.empty()) {
+          double min_infeasible_cost = kHighsInf;
+          for (HighsInt i : infeasible_rows) {
+            min_infeasible_cost = std::min(min_infeasible_cost, lp.col_cost_[i]);
+          }
+          level_theoretical_bound = std::min(level_theoretical_bound, 2.0 * min_infeasible_cost);
+        }
+        
+        if (!feasible_rows.empty()) {
+          double min_feasible_obj = *std::min_element(feasible_objectives.begin(), feasible_objectives.end());
+          level_theoretical_bound = std::min(level_theoretical_bound, min_feasible_obj);
+        }
+        
+      } else if (current_level == 2) {
+        // Level 2: min(min((r_i + 1) * c_i: i ∈ I), min_c + second_min_c, min(obj_at_j: j ∈ F))
+        if (!infeasible_rows.empty()) {
+          for (HighsInt i : infeasible_rows) {
+            double r_i = std::ceil(sum_c / lp.col_cost_[i]);  // integer division already done above
+            double bound_i = (r_i + 1.0) * lp.col_cost_[i];
+            level_theoretical_bound = std::min(level_theoretical_bound, bound_i);
+          }
+        }
+        
+        // General bound: min_c + second_min_c
+        level_theoretical_bound = std::min(level_theoretical_bound, min_c + second_min_c);
+        
+        if (!feasible_rows.empty()) {
+          double min_feasible_obj = *std::min_element(feasible_objectives.begin(), feasible_objectives.end());
+          level_theoretical_bound = std::min(level_theoretical_bound, min_feasible_obj);
         }
       }
+      
+      if (level_theoretical_bound < kHighsInf) {
+        theoretical_lb = std::max(theoretical_lb, level_theoretical_bound);
+        printf("Level %d theoretical bound updated to: %.6f\n", current_level, level_theoretical_bound);
+      }
+    }
       
     } else if (current_level == 3) {
       // Full binary enumeration: (I A)z = b
