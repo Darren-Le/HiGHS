@@ -1864,8 +1864,7 @@ void HighsPrimalHeuristics::latticeEnumeration(int level) {
         theoretical_lb = std::max(theoretical_lb, level_theoretical_bound);
         printf("Level %d theoretical bound updated to: %.6f\n", current_level, level_theoretical_bound);
       }
-    }
-      
+
     } else if (current_level == 3) {
       // Full binary enumeration: (I A)z = b
       MatrixXi IA(m, m + n - m);
